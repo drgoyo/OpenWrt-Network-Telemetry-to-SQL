@@ -1,10 +1,10 @@
 cat << 'EOF' > /root/mesh-to-sql.sh
 #!/bin/sh
 # =================================================================
-# OPENWRT NETWORK TELEMETRY - v2.0
+# OPENWRT NETWORK TELEMETRY - v3.0 (Tri-Band & Frequency Support)
 # =================================================================
 
-# --- CONFIGURATION (Change these!) ---
+# --- CONFIGURATION ---
 TARGET_IP="YOUR_DB_IP"
 TARGET_PORT="3306"
 DB_USER="YOUR_DB_USER"
@@ -49,7 +49,6 @@ log "Step 2: AP Diagnostics & System Health..."
 for ap in $APS; do
     log "Checking AP: $ap"
     if [ "$ap" = "192.168.31.1" ]; then
-        # Nur echte Interfaces abfragen, um "No such device" zu vermeiden
         WIFI_DATA=$(for iface in $(iwinfo | grep "ESSID" | awk '{print $1}'); do iwinfo "$iface" assoclist 2>/dev/null; done)
         UPTIME=$(cat /proc/uptime | awk '{print int($1)}'); RAM=$(free -m | grep Mem | awk '{print $4}'); LOAD=$(cat /proc/loadavg | awk '{print $1}')
         ERRORS=$(logread | grep -E "err|crit|alert|emerg" | tail -n 5)
@@ -61,7 +60,6 @@ for ap in $APS; do
         UPTIME=$(echo "$REMOTE_DATA" | awk 'BEGIN{RS="---"} NR==2 {print int($1)}'); RAM=$(echo "$REMOTE_DATA" | awk 'BEGIN{RS="---"} NR==3 {print $1}'); LOAD=$(echo "$REMOTE_DATA" | awk 'BEGIN{RS="---"} NR==4 {print $1}'); ERRORS=$(echo "$REMOTE_DATA" | awk 'BEGIN{RS="---"} NR==5 {print}')
     fi
 
-    # Roaming SQL
     echo "$WIFI_DATA" | awk -v ap="$ap" -v lease_file="$LEASES" '
         BEGIN { while ((getline < lease_file) > 0) { leases[tolower($2)] = $4 } }
         /^[0-9A-F:]+/ { 
@@ -79,23 +77,38 @@ for ap in $APS; do
     done
 done
 
-# --- 3. WIFI ENVIRONMENT SCAN ---
+# --- 3. WIFI ENVIRONMENT SCAN (REVISED) ---
 if [ $MODE_FORCE -eq 1 ] || [ "$(date +%H%M)" = "0400" ]; then
     log "Step 3: WiFi Environment Scan..."
     for ap in $APS; do
-        SCAN_RAW=""
+        log "Scanning Environment from $ap..."
+        # Wir erfassen das Interface im CMD, um es an AWK zu übergeben
         if [ "$ap" = "192.168.31.1" ]; then
-            for r in wlan0 wlan1 wlan2; do SCAN_RAW="$SCAN_RAW $(iwinfo $r scan 2>/dev/null)"; done
+             SCAN_RAW=$(for r in $(iwinfo | grep "ESSID" | awk '{print $1}'); do echo "IFACE:$r"; iwinfo $r scan; done)
         else
-            SCAN_RAW=$(ssh -i $SSH_KEY -T -y root@$ap "for r in \$(iwinfo | grep 'ESSID' | awk '{print \$1}'); do iwinfo \$r scan; done" 2>/dev/null)
+             SCAN_RAW=$(ssh -i $SSH_KEY -T -y root@$ap "for r in \$(iwinfo | grep 'ESSID' | awk '{print \$1}'); do echo \"IFACE:\$r\"; iwinfo \$r scan; done" 2>/dev/null)
         fi
+        
         [ -z "$SCAN_RAW" ] && continue
+
         echo "$SCAN_RAW" | awk -v ap_ip="$ap" '
-            function p() { if (chan > 0 && bssid ~ /:/) { gsub(/[\\"'\'']/, "", ssid); printf "INSERT INTO wifi_scan_results (ap_ip, ssid, bssid, channel, signal_dbm) VALUES (\"%s\", \"%s\", \"%s\", %d, %d);\n", ap_ip, ssid, bssid, chan, sig; } }
-            /Cell/ { p(); bssid=$NF; ssid="Unknown"; chan=0; sig=0; }
+            function p() { 
+                if (chan > 0 && bssid ~ /:/) { 
+                    gsub(/[\\"'\'']/, "", ssid); 
+                    printf "INSERT INTO wifi_scan_results (ap_ip, interface, ssid, bssid, channel, frequency_mhz, signal_dbm, encryption) VALUES (\"%s\", \"%s\", \"%s\", \"%s\", %d, %d, %d, \"%s\");\n", ap_ip, iface, ssid, bssid, chan, freq, sig, enc; 
+                } 
+            }
+            /^IFACE:/ { split($0, a, ":"); iface=a[2]; next; }
+            /Cell/ { p(); bssid=$NF; ssid="Unknown"; chan=0; sig=0; freq=0; enc="Open"; }
             /ESSID:/ { split($0, a, "\""); ssid=a[2]; if(ssid=="") ssid="Hidden"; }
-            /Channel:|Primary Channel:/ { for(i=1;i<=NF;i++) if($i ~ /^[0-9]+$/) chan=$i; }
+            /Channel:|Primary Channel:/ { 
+                for(i=1;i<=NF;i++) {
+                    if($i ~ /^[0-9]+$/) chan=$i;
+                    if($i ~ /^\([0-9.]+\)$/) { freq=substr($i, 2, length($i)-2) * 1000; }
+                }
+            }
             /Signal:/ { sig=$2; sig=int(sig); }
+            /Encryption:/ { split($0, a, ": "); enc=a[2]; }
             END { p(); }' | while read -r single_sql; do push_sql "$single_sql"; done
     done
 fi
