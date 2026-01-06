@@ -4,3 +4,6 @@
 
 # Ignore actual credentials if you use a separate config file later
 config.local.sh
+*.key
+id_rsa
+config.sh
