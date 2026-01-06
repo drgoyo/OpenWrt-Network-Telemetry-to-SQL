@@ -13,7 +13,7 @@ SyncSimple shell scripts for OpenWrt (tested on GL.iNet Flint 3 and openwrt dumb
 ### Prerequisites
 The following packages must be installed on your main router:
 ```bash
-opkg update && opkg install mariadb-client arp-scan fping speedtest-cli
+opkg update && opkg install mariadb-client arp-scan arp-scan-database fping speedtest-cli
 ```
 
 #### 🔄 Hostname Sync
