@@ -1,3 +1,4 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 # OpenWrt Network Telemetry to SQL
 
 A powerful, lightweight telemetry collector for OpenWrt (optimized for GL.iNet Flint 3 & Xiaomi Mesh). It aggregates metrics from multiple Access Points and pushes them to a central MariaDB/MySQL database.
