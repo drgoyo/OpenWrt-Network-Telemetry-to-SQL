@@ -1,0 +1,6 @@
+# Ignore temporary files
+*.tmp
+*.log
+
+# Ignore actual credentials if you use a separate config file later
+config.local.sh
