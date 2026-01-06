@@ -1,14 +1,20 @@
 ## OpenWrt Network Telemetry & AP sync
 SyncSimple shell scripts for OpenWrt (tested on GL.iNet Flint 3 and openwrt dumb AP) to collect network data into a MariaDB/MySQL database and keep hostnames synchronized across access points.
 
-### ✨ Features📊 
+### Features
+* **Detailed ARP Scanning:** Logs all LAN devices with MAC, IP, and real manufacturer names (OUI).
+* **Client Inventory:** Maintains a persistent register of devices with `first_seen`, `last_seen`, and uptime tracking.
+* **WiFi Roaming & Performance:** Tracks client signal strength (dBm) and real-time TX/RX rates (MBit/s) across all Mesh nodes.
+* **Hardware Health:** Monitors CPU Load (1/5/15 min), RAM usage (Free/Buffered/Cached), and Disk space for all nodes.
+* **Gateway & WAN Metrics:** Logs external WAN IP, Gateway IP, DDNS status, and traffic throughput.
+* **Internet Speedtests:** Periodic automated speedtests (Ping/Down/Up).
+* **WiFi Environment Scan:** Hourly neighborhood network discovery to optimize channel usage.
 
-#### TelemetryClient Tracking:Collects client list (IPv4/IPv6) and hostnames.
-- Signal Monitoring: Logs client signal strength (dBm) and traffic stats.
-- Hardware Health: Records CPU load, RAM usage, and Uptime of all mesh nodes.
-- Logs: Aggregates system error logs in a central database.
-- Performance: Performs automated speedtests and WAN traffic tracking.WiFi
-- Environment: Periodic scans for neighboring networks.
+### Prerequisites
+The following packages must be installed on your main router:
+```bash
+opkg update && opkg install mariadb-client arp-scan fping speedtest-cli
+```
 
 #### 🔄 Hostname Sync
 - Centralized Data: Collects hostnames from the primary router (DHCP/UCI).
